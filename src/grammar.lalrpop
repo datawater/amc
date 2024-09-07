@@ -1,0 +1,48 @@
+use rug::{Float, Assign};
+use rug::ops::Pow;
+use crate::value::{Value, apply_operation};
+
+grammar;
+
+pub Expr: Value = {
+    Negation,
+}
+
+Negation: Value = {
+    "-" <l:AddSub> => Value::Negation(Box::new(l)),
+    AddSub,
+}
+
+AddSub: Value = {
+    <l:AddSub> "+" <r:Factor> => apply_operation(&l, &r, "+", |lhs, rhs| Float::with_val(256, lhs + rhs)),
+    <l:AddSub> "-" <r:Factor> => apply_operation(&l, &r, "-", |lhs, rhs| Float::with_val(256, lhs - rhs)),
+    Factor,
+}
+
+Factor: Value = {
+    <l:Factor> "*" <r:Exponent> => apply_operation(&l, &r, "*", |lhs, rhs| Float::with_val(256, lhs * rhs)),
+    <l:Factor> "/" <r:Exponent> => apply_operation(&l, &r, "/", |lhs, rhs| Float::with_val(256, lhs / rhs)),
+    <l:Factor> "%" <r:Exponent> => apply_operation(&l, &r, "%", |lhs, rhs| Float::with_val(256, lhs % rhs)),
+    Exponent,
+}
+
+Exponent: Value = {
+    <l:Exponent> "**" <r:Term> => apply_operation(&l, &r, "**", |lhs, rhs| Float::pow(lhs.clone(), rhs)),
+    Term,
+}
+
+Term: Value = {
+    Num,
+    Var,
+    "(" <Expr> ")",
+}
+
+Var: Value = <s:r"[a-zA-Z]"> => {
+    Value::Variable(s.chars().next().unwrap())
+};
+
+Num: Value = <s:r"[+-]?((\d+([.]\d*)?([eE][+-]?\d+)?|[.]\d+([eE][+-]?\d+)?)|(inf))|(nan)"> => {
+    let mut float = Float::new(256);
+    float.assign(Float::parse(s).unwrap());
+    Value::Number(float)
+};
